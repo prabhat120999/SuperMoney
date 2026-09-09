@@ -1,11 +1,26 @@
-import React, { useEffect, useState } from 'react';
+import React, {useEffect, useState} from 'react';
 import {
-  View,
-  Text,
+  ActivityIndicator,
   Pressable,
   StyleSheet,
-  ActivityIndicator,
+  Text,
+  View,
 } from 'react-native';
+
+const UNKNOWN_TIMEOUT = 30_000;
+
+function formatElapsed(milliseconds) {
+  const seconds = Math.floor(milliseconds / 1000);
+
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+
+  return `${minutes}m ${remainingSeconds}s`;
+}
 
 export default function PaymentStatusScreen({
   paymentState,
@@ -17,255 +32,233 @@ export default function PaymentStatusScreen({
     refId,
     reason,
     unknownStartedAt,
+    startedAt,
   } = paymentState;
 
-  const [remainingSeconds, setRemainingSeconds] = useState(30);
+  const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
-    if (state !== 'unknown') {
-      return;
+    if (
+      !['pending', 'unknown'].includes(state)
+    ) {
+      return undefined;
     }
 
-    const update = () => {
-      const elapsed =
-        Date.now() - unknownStartedAt;
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 250);
 
-      const remaining = Math.max(
-        0,
-        Math.ceil((30_000 - elapsed) / 1000)
-      );
+    return () => clearInterval(interval);
+  }, [state]);
 
-      setRemainingSeconds(remaining);
-    };
+  const pendingElapsed = startedAt
+    ? formatElapsed(now - startedAt)
+    : '0s';
 
-    update();
+  const unknownElapsed = unknownStartedAt
+    ? now - unknownStartedAt
+    : 0;
 
-    const timer = setInterval(update, 250);
+  const remainingSeconds = Math.max(
+    0,
+    Math.ceil(
+      (UNKNOWN_TIMEOUT - unknownElapsed) / 1000,
+    ),
+  );
 
-    return () => clearInterval(timer);
-  }, [state, unknownStartedAt]);
-
-  switch (state) {
-    case 'initiating':
-      return (
-        <View style={styles.container}>
-          <ActivityIndicator size="large" />
-
-          <Text style={styles.title}>
-            Sending payment...
-          </Text>
-        </View>
-      );
-
-    case 'pending':
-      return (
-        <View style={styles.container}>
-          <ActivityIndicator size="large" />
-
-          <Text style={styles.title}>
-            Processing...
-          </Text>
-
-          <Text style={styles.subtitle}>
-            Payment is being processed
-          </Text>
-        </View>
-      );
-
-    case 'polling':
-      return (
-        <View style={styles.container}>
-          <ActivityIndicator size="large" />
-
-          <Text style={styles.title}>
-            Confirming with bank...
-          </Text>
-        </View>
-      );
-
-    case 'success':
-      return (
-        <View style={styles.container}>
-        <View style={styles.successIconContainer}>
-        
-          <Text style={styles.successIcon}>✓</Text>
-        </View>
-
-          <Text style={styles.title}>
-            Payment Successful
-          </Text>
-
-          <Text style={styles.amount}>
-            ₹{amount}
-          </Text>
-
-          <Text style={styles.subtitle}>
-            UPI Ref: {refId}
-          </Text>
-          <Pressable
-            style={styles.button}
-            onPress={onRetry}
-          >
-            <Text style={styles.buttonText}>
-              Pay another amount
+  const renderContent = () => {
+    switch (state) {
+      case 'initiating':
+        return (
+          <>
+            <ActivityIndicator size="large" />
+            <Text style={styles.title}>
+              Sending payment...
             </Text>
-          </Pressable>
-        </View>
-      );
+          </>
+        );
 
-    case 'failed':
-      return (
-        <View style={styles.container}>
-          <Text style={styles.failedIcon}>✕</Text>
-
-          <Text style={styles.title}>
-            Payment Failed
-          </Text>
-
-          <Text style={styles.subtitle}>
-            {reason}
-          </Text>
-
-          <Pressable
-            style={styles.button}
-            onPress={onRetry}
-          >
-            <Text style={styles.buttonText}>
-              Try again
+      case 'pending':
+        return (
+          <>
+            <ActivityIndicator size="large" />
+            <Text style={styles.title}>
+              Processing...
             </Text>
-          </Pressable>
-        </View>
-      );
-
-    case 'unknown':
-      return (
-        <View style={styles.container}>
-          <Text style={styles.warningIcon}>!</Text>
-
-          <Text style={styles.title}>
-            Could not confirm.
-          </Text>
-
-          <Text style={styles.subtitle}>
-            Checking...
-          </Text>
-
-          <Text style={styles.countdown}>
-            {remainingSeconds}s
-          </Text>
-        </View>
-      );
-
-    case 'manual_check':
-      return (
-        <View style={styles.container}>
-          <Text style={styles.warningIcon}>!</Text>
-
-          <Text style={styles.title}>
-            Payment status unclear
-          </Text>
-
-          <Text style={styles.subtitle}>
-            Check your UPI app.
-          </Text>
-
-          <Pressable
-            style={styles.button}
-            onPress={() => {
-              // Support CTA
-            }}
-          >
-            <Text style={styles.buttonText}>
-              Contact support
+            <Text style={styles.subtitle}>
+              Payment is being processed
             </Text>
-          </Pressable>
-        </View>
-      );
+            <Text style={styles.timer}>
+              Elapsed: {pendingElapsed}
+            </Text>
+          </>
+        );
 
-    default:
-      return null;
-  }
+      case 'polling':
+        return (
+          <>
+            <ActivityIndicator size="large" />
+            <Text style={styles.title}>
+              Confirming with bank...
+            </Text>
+          </>
+        );
+
+      case 'success':
+        return (
+          <>
+          <View style={styles.successContainer}>
+            <Text style={styles.successIcon}>✓</Text>
+            </View>
+            <Text style={styles.title}>
+              Payment successful
+            </Text>
+            <Text style={styles.amount}>
+              ₹{amount}
+            </Text>
+            <Text style={styles.subtitle}>
+              UPI reference: {refId}
+            </Text>
+
+            <Pressable
+              onPress={onRetry}
+              style={styles.button}>
+              <Text style={styles.buttonText}>
+                Pay another amount
+              </Text>
+            </Pressable>
+          </>
+        );
+
+      case 'failed':
+        return (
+          <>
+            <Text style={styles.failedIcon}>×</Text>
+            <Text style={styles.title}>
+              Payment failed
+            </Text>
+            <Text style={styles.subtitle}>
+              {reason}
+            </Text>
+
+            <Pressable
+              onPress={onRetry}
+              style={styles.button}>
+              <Text style={styles.buttonText}>
+                Try again
+              </Text>
+            </Pressable>
+          </>
+        );
+
+      case 'unknown':
+        return (
+          <>
+            <Text style={styles.unknownIcon}>!</Text>
+            <Text style={styles.title}>
+              Could not confirm.
+            </Text>
+            <Text style={styles.subtitle}>
+              Checking...
+            </Text>
+            <Text style={styles.timer}>
+              Checking for {remainingSeconds}s
+            </Text>
+          </>
+        );
+
+      case 'manual_check':
+        return (
+          <>
+            <Text style={styles.unknownIcon}>!</Text>
+            <Text style={styles.title}>
+              Payment status unclear
+            </Text>
+            <Text style={styles.subtitle}>
+              Check your UPI app.
+            </Text>
+
+            <Pressable
+              onPress={onRetry}
+              style={styles.button}>
+              <Text style={styles.buttonText}>
+                Contact support
+              </Text>
+            </Pressable>
+          </>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      {renderContent()}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
-    backgroundColor: '#fff',
   },
-
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
-    marginTop: 20,
     textAlign: 'center',
+    marginTop: 20,
   },
-
   subtitle: {
-    fontSize: 16,
     color: '#666',
-    marginTop: 10,
     textAlign: 'center',
+    marginTop: 8,
   },
-
   amount: {
-    fontSize: 32,
-    fontWeight: '800',
-    marginTop: 20,
+    fontSize: 30,
+    fontWeight: '700',
+    marginTop: 16,
   },
-
-  successIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#dcfce7',
-    alignSelf: 'center',
+  timer: {
+    marginTop: 16,
+    fontSize: 14,
+    color: '#666',
+  },
+  successContainer:{
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'lightgreen',
+    alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 4,
+    borderColor: 'green',
   },
-
   successIcon: {
-    fontSize: 50,
-    color: '#16a34a',
-    alignSelf: 'center',
-    justifyContent: 'center',
+    fontSize: 72,
+    color: 'green',
   },
-
   failedIcon: {
-    fontSize: 64,
-    color: '#dc2626',
+    fontSize: 72,
+    color: 'red',
   },
-
-  warningIcon: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#fef3c7',
-    color: '#d97706',
-    textAlign: 'center',
-    textAlignVertical: 'center',
-    fontSize: 42,
+  unknownIcon: {
+    fontSize: 72,
+    color: '#D99000',
   },
-
-  countdown: {
-    fontSize: 40,
-    fontWeight: '700',
-    marginTop: 24,
-    color: '#d97706',
-  },
-
   button: {
-    backgroundColor: '#2563eb',
-    paddingHorizontal: 32,
+    marginTop: 28,
+    paddingHorizontal: 24,
     paddingVertical: 14,
-    borderRadius: 10,
-    marginTop: 30,
+    borderRadius: 8,
+    backgroundColor: '#111',
   },
-
   buttonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 16,
+    color: '#FFF',
+    fontWeight: '600',
   },
 });

@@ -1,77 +1,119 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import {
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
+} from 'react-native';
 
-const UPI_REGEX = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+$/;
+const UPI_REGEX =
+    /^[a-zA-Z0-9]+@[a-zA-Z]+$/;
 
-const PaymentEntryScreen = ({ onSubmit }) => {
+export default function PaymentEntryScreen({ onSubmit }) {
     const [upiId, setUpiId] = useState('');
     const [amount, setAmount] = useState('');
 
-    const validUpi = UPI_REGEX.test(upiId.trim());
+    const trimmedUpiId = upiId.trim();
 
-    const numericAmount = Number(amount);
+    const validUpi = useMemo(
+        () => UPI_REGEX.test(trimmedUpiId),
+        [trimmedUpiId],
+    );
 
-    const validAmount =
-        amount.length > 0 && Number.isFinite(numericAmount) && numericAmount >= 1;
+    const numericAmount = useMemo(
+        () => Number(amount),
+        [amount],
+    );
+
+    const validAmount = useMemo(
+        () =>
+            amount.length > 0 &&
+            Number.isFinite(numericAmount) &&
+            numericAmount >= 1,
+        [amount, numericAmount],
+    );
 
     const canPay = validUpi && validAmount;
 
     const handlePay = () => {
-        if (!canPay) return;
+        if (!canPay) {
+            return;
+        }
 
         onSubmit({
-            upiId: upiId.trim(),
+            upiId: trimmedUpiId,
             amount: numericAmount,
         });
     };
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>Send Money</Text>
+            <Text style={styles.title}>Make Payment</Text>
 
-            <Text style={styles.payementLabel}>Enter Payement Details</Text>
             <Text style={styles.label}>UPI ID</Text>
 
             <TextInput
-                style={[
-                    styles.input,
-                    upiId.length > 0 && !validUpi && styles.inputError,
-                ]}
-                placeholder="name@bank"
-                autoCapitalize="none"
-                keyboardType="email-address"
                 value={upiId}
                 onChangeText={setUpiId}
+                placeholder="name@bank"
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                style={styles.input}
             />
 
             {upiId.length > 0 && !validUpi && (
-                <Text style={styles.error}>Enter a valid UPI ID, e.g. name@bank</Text>
+                <Text style={styles.error}>
+                    Enter a valid UPI ID, for example name@bank
+                </Text>
             )}
 
-            <Text style={styles.label}>Amount (Rs)</Text>
+            <Text style={styles.label}>Amount</Text>
 
             <TextInput
-                style={[
-                    styles.input,
-                    amount.length > 0 && !validAmount && styles.inputError,
-                ]}
-                placeholder="Amount"
-                keyboardType="decimal-pad"
                 value={amount}
-                onChangeText={setAmount}
+                onChangeText={text => {
+                    if (/^\d*(\.\d{0,2})?$/.test(text)) {
+                        setAmount(text);
+                    }
+                }}
+                placeholder="Enter amount"
+                keyboardType="decimal-pad"
+                style={styles.input}
             />
 
             {amount.length > 0 && !validAmount && (
-                <Text style={styles.error}>Amount must be at least ₹1</Text>
+                <Text style={styles.error}>
+                    Amount must be at least ₹1
+                </Text>
             )}
-            <Text>Paying to</Text>
-            <Text>Amit Kumar</Text>
-            <Text>Icici Bank</Text>
+            {validUpi?<>
+            <Text style={styles.labelPayingTo}>
+                Paying to:
+            </Text>
+            <View style={styles.recipientCard}>
+                <Text style={styles.recipientName}>
+                    Amit Kumar
+                </Text>
+
+                <Text style={styles.recipientBank}>
+                    ICICI Bank
+                </Text>
+            </View>
+            </>
+            : null}
+
             <Pressable
-                onPress={handlePay}
                 disabled={!canPay}
-                style={[styles.button, !canPay && styles.buttonDisabled]}>
-                <Text style={styles.buttonText}>Pay Now {validAmount ? `Rs.${amount}` : ''}</Text>
+                onPress={handlePay}
+                style={[
+                    styles.button,
+                    !canPay && styles.disabledButton,
+                ]}>
+                <Text style={styles.buttonText}>
+                    Pay Now {validAmount ? `₹${numericAmount}` : ''}
+                </Text>
             </Pressable>
         </View>
     );
@@ -82,63 +124,62 @@ const styles = StyleSheet.create({
         flex: 1,
         padding: 24,
         justifyContent: 'center',
-        backgroundColor: '#fff',
     },
-
     title: {
         fontSize: 28,
         fontWeight: '700',
         marginBottom: 32,
     },
-    payementLabel: {
-        fontSize: 14,
-        // fontWeight: '600',
-        marginBottom: 8,
-        marginTop: 16,
-    },
     label: {
         fontSize: 14,
         fontWeight: '600',
         marginBottom: 8,
+    },
+    input: {
+        borderWidth: 1,
+        borderColor: '#D0D0D0',
+        borderRadius: 8,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        marginBottom: 6,
+    },
+    error: {
+        color: '#D32F2F',
+        fontSize: 12,
+        marginBottom: 16,
+    },
+    labelPayingTo: {
+        fontSize: 14,
+        fontWeight: '600',
         marginTop: 16,
     },
-
-    input: {
-        height: 52,
-        borderWidth: 1,
-        borderColor: '#ccc',
-        borderRadius: 10,
-        paddingHorizontal: 16,
+    recipientCard: {
+        padding: 16,
+        borderRadius: 8,
+        backgroundColor: '#F5F5F5',
+        marginTop: 8,
+    },
+    recipientName: {
         fontSize: 16,
+        fontWeight: '600',
     },
-
-    inputError: {
-        borderColor: '#dc2626',
+    recipientBank: {
+        marginTop: 4,
+        color: '#666',
     },
-
-    error: {
-        color: '#dc2626',
-        marginTop: 6,
-        fontSize: 13,
-    },
-
     button: {
-        height: 52,
-        borderRadius: 10,
-        backgroundColor: '#2563eb',
+        paddingVertical: 14,
+        borderRadius: 8,
         alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: 32,
+        backgroundColor: '#111',
+        marginTop: 24,
     },
-
-    buttonDisabled: {
-        backgroundColor: '#9ca3af',
+    disabledButton: {
+        backgroundColor: '#BDBDBD',
     },
-
     buttonText: {
-        color: '#fff',
+        color: '#FFF',
         fontSize: 16,
-        fontWeight: '700',
+        fontWeight: '600',
     },
 });
-export default PaymentEntryScreen;
